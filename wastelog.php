@@ -3,8 +3,8 @@
 // wastelog.php - Waste Logging Database Viewer
 // =============================================
 
-session_start();
 require_once 'config/config.php';
+session_start();
 
 // Redirect if not logged in
 if (!isLoggedIn()) {
@@ -18,7 +18,7 @@ $flash = getFlash();
 // =============================================
 // Database connection
 // =============================================
-$db = getDB(); // assumes config.php provides getDB() returning PDO
+$db = $pdo;
 
 // =============================================
 // Filter parameters

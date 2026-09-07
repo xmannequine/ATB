@@ -4,12 +4,8 @@
 // =============================================
 
 // Start session and include config
-session_start();
 require_once 'config/config.php';
-
-// Enable error reporting for debugging (remove in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
 
 // =============================================
 // 🔒 PROTECTED PAGE - Check if user is logged in

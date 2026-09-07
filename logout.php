@@ -1,7 +1,7 @@
 <?php
-// logout.php - Log the user out and redirect to login
-session_start();
+// logout.php - Log the user out and redirect to the landing page
 require_once 'config/config.php';
+session_start();
 
 // Log activity if available
 if (isLoggedIn()) {
@@ -24,5 +24,5 @@ if (ini_get('session.use_cookies')) {
 
 session_destroy();
 
-header('Location: login.php');
+header('Location: landing.php');
 exit();

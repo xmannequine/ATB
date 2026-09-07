@@ -3,23 +3,36 @@
 // config.php - ATB System Configuration
 // =============================================
 
+function configValue($key, $default = '') {
+    $value = getenv($key);
+    if ($value === false || $value === '') {
+        $value = $_ENV[$key] ?? $_SERVER[$key] ?? $default;
+    }
+    return $value;
+}
+
 // Error reporting (disable in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+$runtimeHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+$configuredEnvironment = configValue('APP_ENV');
+$appEnvironment = $configuredEnvironment ?: (in_array($runtimeHost, ['localhost', '127.0.0.1', '[::1]'], true) ? 'local' : 'production');
+$isProduction = strtolower($appEnvironment) === 'production';
+error_reporting($isProduction ? 0 : E_ALL);
+ini_set('display_errors', $isProduction ? '0' : '1');
 
 // =============================================
 // Database Configuration
 // =============================================
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'atb');        // Changed from 'hr3_atb'
-define('DB_USER', 'root');            // Changed from 'hr3_atb' (typical local user)
-define('DB_PASS', '');                // Empty password for local root (typical)
+define('DB_HOST', configValue('DB_HOST', 'localhost'));
+define('DB_NAME', configValue('DB_NAME', 'atb'));
+define('DB_USER', configValue('DB_USER', 'root'));
+define('DB_PASS', configValue('DB_PASS'));
 
 // =============================================
 // Application Configuration
 // =============================================
 define('APP_NAME', 'SmartBin');
 define('APP_VERSION', '2.0');
+define('APP_ENV', strtolower($appEnvironment));
 
 // Auto-detect domain for APP_URL (works on both localhost and live server)
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
@@ -32,37 +45,45 @@ define('APP_URL', $protocol . $host . $basePath . '/');
 // =============================================
 define('LANDING_PAGE', 'landing.php');
 define('LOGIN_PAGE', 'login.php');
-define('DASHBOARD_PAGE', 'dashboard.php');
+define('DASHBOARD_PAGE', 'index.php');
 
 // =============================================
 // Email Configuration (SMTP)
 // =============================================
-define('SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.gmail.com');
-define('SMTP_PORT', (int)(getenv('SMTP_PORT') ?: 587));
-define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'atb07162026@gmail.com');
-define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: 'lwlipeqbknvjadsr');
-define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: 'atb07162026@gmail.com');
-define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'SmartBin System');
-define('SMTP_SECURE', 'tls');
-define('SMTP_ENABLED', true);
+define('SMTP_HOST', configValue('SMTP_HOST', strtolower($appEnvironment) === 'production' ? 'smtp.hostinger.com' : 'smtp.gmail.com'));
+define('SMTP_PORT', (int)configValue('SMTP_PORT', 587));
+define('SMTP_USERNAME', configValue('SMTP_USERNAME'));
+define('SMTP_PASSWORD', configValue('SMTP_PASSWORD'));
+define('SMTP_FROM_EMAIL', configValue('SMTP_FROM_EMAIL'));
+define('SMTP_FROM_NAME', configValue('SMTP_FROM_NAME', 'SmartBin System'));
+define('SMTP_SECURE', strtolower(configValue('SMTP_SECURE', 'tls')));
+$smtpCredentialsAvailable = SMTP_USERNAME !== '' && SMTP_PASSWORD !== '' && SMTP_FROM_EMAIL !== '';
+define('SMTP_ENABLED', filter_var(configValue('SMTP_ENABLED', $smtpCredentialsAvailable ? 'true' : 'false'), FILTER_VALIDATE_BOOLEAN));
+define('MONITOR_PASSWORD', configValue('MONITOR_PASSWORD'));
 
 // =============================================
 // Session Configuration
 // =============================================
 if (session_status() === PHP_SESSION_NONE) {
+    session_name('smartbin_session');
+    session_cache_limiter('nocache');
     ini_set('session.cookie_httponly', 1);
     ini_set('session.use_only_cookies', 1);
+    ini_set('session.use_strict_mode', 1);
     
     // Auto-detect HTTPS for secure cookies
-    $isHttps = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-    ini_set('session.cookie_secure', $isHttps ? 1 : 0);
-    
-    // Set session cookie domain for subdomain support
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    if (strpos($host, '.') !== false && $host !== 'localhost') {
-        $domainParts = explode('.', $host);
-        $domain = '.' . implode('.', array_slice($domainParts, -2));
-        ini_set('session.cookie_domain', $domain);
+    $isHttps = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    } else {
+        session_set_cookie_params(0, '/', '', $isHttps, true);
     }
 }
 
@@ -237,7 +258,7 @@ function generateCSRFToken() {
 }
 
 function verifyCSRFToken($token) {
-    if (!isset($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
+    if (!is_string($token) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
         return false;
     }
     
@@ -322,6 +343,10 @@ function isPlaceholderEmailConfig() {
         || in_array($fromEmail, $placeholderFroms, true);
 }
 
+function isLocalTestMode() {
+    return APP_ENV === 'local' && !SMTP_ENABLED;
+}
+
 // =============================================
 // Email Function using PHPMailer or PHP mail()
 // =============================================
@@ -335,6 +360,11 @@ function sendEmail($to, $subject, $body, $altBody = '') {
     $entry = date('Y-m-d H:i:s') . " | TO: {$to} | SUBJECT: {$subject}\n";
     file_put_contents($logFile, $entry, FILE_APPEND);
 
+    if (isLocalTestMode()) {
+        file_put_contents($logFile, date('Y-m-d H:i:s') . " | LOCAL OTP TEST MODE | TO: {$to}\n", FILE_APPEND);
+        return true;
+    }
+
     if (!SMTP_ENABLED) {
         error_log('SMTP is disabled. OTP email not sent.');
         file_put_contents($logFile, date('Y-m-d H:i:s') . " | SMTP DISABLED\n", FILE_APPEND);
@@ -342,8 +372,14 @@ function sendEmail($to, $subject, $body, $altBody = '') {
     }
 
     if (isPlaceholderEmailConfig()) {
-        file_put_contents($logFile, date('Y-m-d H:i:s') . " | LOCAL TEST MODE | TO: {$to}\n", FILE_APPEND);
-        return true;
+        if (APP_ENV === 'local') {
+            file_put_contents($logFile, date('Y-m-d H:i:s') . " | LOCAL TEST MODE | TO: {$to}\n", FILE_APPEND);
+            return true;
+        }
+
+        error_log('SMTP credentials are incomplete. OTP email not sent.');
+        file_put_contents($logFile, date('Y-m-d H:i:s') . " | SMTP CONFIGURATION INCOMPLETE\n", FILE_APPEND);
+        return false;
     }
 
     if (class_exists('\PHPMailer\PHPMailer\PHPMailer')) {

@@ -3,8 +3,10 @@
 // landing.php - SmartBin Private System Entry
 // =============================================
 
-session_start();
 require_once 'config/config.php';
+session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 // If user is already logged in, redirect to dashboard
 if (isLoggedIn()) {

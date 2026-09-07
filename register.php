@@ -4,11 +4,10 @@
 // Simplified version with better error handling
 // =============================================
 
-session_start();
 require_once 'config/config.php';
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 // Redirect if already logged in
 if (isLoggedIn()) {
@@ -104,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             $step = 'verify_otp';
                             $success = "OTP sent to " . maskEmail($email);
-                            if (isPlaceholderEmailConfig()) {
+                            if (isLocalTestMode()) {
                                 $otp_display = $otp;
                             }
                             $user_data = [

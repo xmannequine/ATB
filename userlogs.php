@@ -3,8 +3,8 @@
 // userlogs.php - User Activity Audit Log
 // =============================================
 
-session_start();
 require_once 'config/config.php';
+session_start();
 
 if (!isLoggedIn()) {
     setFlash('error', 'Please login to access user logs.');

@@ -4,11 +4,10 @@
 // Automated Trash Bin System
 // =============================================
 
-session_start();
 require_once 'config/config.php';
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 // If already logged in, go to dashboard
 if (isLoggedIn()) {
@@ -59,12 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $email = $user['email'];
                         $user_id = $user['user_id'];
                         $success_message = "OTP sent to " . maskEmail($user['email']);
+                        if (isLocalTestMode()) {
+                            $otp_display = $otp;
+                            $success_message = 'Local test mode: OTP generated successfully.';
+                        }
                     } else {
-                        $step = 'verify_otp';
-                        $email = $user['email'];
-                        $user_id = $user['user_id'];
-                        $otp_display = $otp;
-                        $success_message = '⚠️ SMTP not configured. OTP shown for testing.';
+                        $error = 'Unable to send the OTP email. Please contact the administrator.';
+                        unset($_SESSION['otp'], $_SESSION['otp_expiry'], $_SESSION['otp_user_id'], $_SESSION['otp_attempts']);
                     }
                 } else {
                     $error = 'Invalid username/email or password.';
@@ -148,6 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$user['user_id'], password_hash($otp, PASSWORD_DEFAULT), $otp_expiry, $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']]);
                     
                     if (!sendOTPEmail($user['email'], $otp, $user['full_name'])) {
+                        $otp_display = $otp;
+                    } elseif (isLocalTestMode()) {
                         $otp_display = $otp;
                     }
                     
@@ -880,7 +882,7 @@ $flash = getFlash();
             <!-- Login Form -->
             <?php if ($step === 'login'): ?>
                 <form method="POST" id="loginForm">
-                    <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="action" value="login">
 
                     <div class="input-group-custom">

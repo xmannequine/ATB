@@ -1,17 +1,31 @@
 <?php
 // =============================================
 // monitor.php - Community Trash Bin Monitor
-// Password: atb2026
 // No session required - Large Display Optimized
 // Enhanced with logo5.png and improved UI
 // =============================================
 
-// Set password
-$MONITOR_PASSWORD = 'atb2026';
+require_once __DIR__ . '/config/config.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
+$monitorPassword = MONITOR_PASSWORD;
 
 // Check if password is submitted via URL parameter
-$isAuthorized = false;
-if (isset($_GET['key']) && $_GET['key'] === $MONITOR_PASSWORD) {
+$isAuthorized = isLoggedIn();
+if ($monitorPassword !== '' && isset($_GET['key']) && hash_equals($monitorPassword, (string)$_GET['key'])) {
+    $_SESSION['monitor_authorized'] = true;
+    if (!isset($_GET['api'])) {
+        header('Location: monitor.php');
+        exit();
+    }
+}
+if (!empty($_SESSION['monitor_authorized'])) {
     $isAuthorized = true;
 }
 
@@ -222,9 +236,6 @@ if (!$isAuthorized) {
 // Authorized - Show the Monitor Dashboard
 // =============================================
 
-// Include database configuration
-require_once 'config/config.php';
-
 if (isset($_GET['api']) && $_GET['api'] === 'status') {
     header('Content-Type: application/json');
 
@@ -256,7 +267,8 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
                 (SELECT COUNT(*) FROM trash_bins) as total_bins,
                 (SELECT COUNT(*) FROM trash_bins WHERE status <> 'maintenance') as maintainable_bins");
         $metricData = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
+        error_log('Monitor API error: ' . $e->getMessage());
         $binStatus = [];
         $alertCount = 0;
         $lastDisposal = null;
@@ -300,7 +312,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'status') {
             'plastic' => round($plasticFill, 2),
             'metal' => round($metalFill, 2)
         ]
-    ]);
+    ], JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -377,7 +389,8 @@ try {
     ");
     $binLocations = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-} catch (PDOException $e) {
+    } catch (Throwable $e) {
+        error_log('Monitor bin data error: ' . $e->getMessage());
     $allBins = [];
     $binStatus = [];
     $binLocations = [];
@@ -432,7 +445,8 @@ try {
             (SELECT COUNT(*) FROM trash_bins WHERE status <> 'maintenance') as maintainable_bins
     ");
     $metricData = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log('Monitor statistics error: ' . $e->getMessage());
     $todayStats = ['total_disposals' => 0];
     $metricData = [];
 }
@@ -449,7 +463,8 @@ try {
         LIMIT 5
     ");
     $alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log('Monitor alerts error: ' . $e->getMessage());
     $alerts = [];
 }
 
@@ -501,7 +516,9 @@ try {
     $stmt = $pdo->query("SELECT created_at FROM waste_logs ORDER BY created_at DESC LIMIT 1");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row) $lastDisposalTime = date('h:i A', strtotime($row['created_at']));
-} catch (PDOException $e) { }
+} catch (Throwable $e) {
+    error_log('Monitor last disposal error: ' . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">

@@ -54,7 +54,7 @@ try {
         echo "<pre>" . implode("\n\n", $errors) . "</pre>";
     } else {
         echo "<p>🎉 All migrations completed successfully!</p>";
-        echo "<p><a href='monitor.php?key=atb2026'>View Monitor</a></p>";
+        echo "<p>Migration finished. Use the configured monitor access link to open the monitor.</p>";
     }
     
 } catch (PDOException $e) {

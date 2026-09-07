@@ -4,8 +4,8 @@
 // Automated Trash Bin System
 // =============================================
 
-session_start();
 require_once 'config/config.php';
+session_start();
 
 // Check login
 if (!isLoggedIn()) {

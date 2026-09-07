@@ -1,10 +1,10 @@
 <?php
 // =============================================
-// manual.php - SmartBin Manual Control Dashboard
+// manualcontrol.php - SmartBin Manual Control Dashboard
 // =============================================
 
-session_start();
 require_once 'config/config.php';
+session_start();
 
 // Check if user is logged in (redirect if not)
 if (!isLoggedIn()) {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // In production, you'd send commands to hardware via API
     // For now, we just set a flash message and reload
     setFlash('success', 'Command sent successfully.');
-    header('Location: manual.php');
+    header('Location: manualcontrol.php');
     exit();
 }
 ?>

@@ -1,23 +1,18 @@
 <?php
 // =============================================
-// dashboard.php - ATB System Dashboard
+// dashboard.php - CT-ABS System Dashboard
 // Automated Trash Bin System
 // =============================================
 
 // Start session and include config
-session_start();
 require_once 'config/config.php';
-
-// Enable error reporting for debugging (remove in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
 
 // =============================================
 // 🔒 PROTECTED PAGE - Check if user is logged in
 // =============================================
 if (!isLoggedIn()) {
-    setFlash('error', 'Please login to access the dashboard.');
-    redirectToLogin();
+    redirectToLanding();
 }
 
 // User is logged in, get user data
@@ -230,6 +225,7 @@ try {
     }
     
 } catch(PDOException $e) {
+    error_log('Dashboard data error: ' . $e->getMessage());
     $total_users = 0;
     $active_users = 0;
     $binStatus = [];
@@ -251,10 +247,21 @@ try {
     $suggestionType = 'warning';
 }
 
-// Get fill levels
-$bioFill = isset($binStatus[0]) ? floatval($binStatus[0]['fill_level']) : 0;
-$plasticFill = isset($binStatus[1]) ? floatval($binStatus[1]['fill_level']) : 0;
-$metalFill = isset($binStatus[2]) ? floatval($binStatus[2]['fill_level']) : 0;
+// Get fill levels by bin type; SQL result order is not guaranteed.
+$fillLevels = [
+    'biodegradable' => 0,
+    'plastic' => 0,
+    'metal' => 0
+];
+foreach ($binStatus as $status) {
+    $binType = strtolower((string)($status['bin_type'] ?? ''));
+    if (array_key_exists($binType, $fillLevels)) {
+        $fillLevels[$binType] = (float)$status['fill_level'];
+    }
+}
+$bioFill = $fillLevels['biodegradable'];
+$plasticFill = $fillLevels['plastic'];
+$metalFill = $fillLevels['metal'];
 
 // ============================================================
 // HELPER FUNCTIONS - Defined only ONCE
@@ -675,7 +682,7 @@ function getColorGradient() {
         <img src="logo5.png" alt="CT-ABS Logo" class="w-full h-full object-cover">
     </div>
     <div>
-        <a href="dashboard.php" class="text-xl font-bold tracking-tight hover:opacity-80 transition">
+        <a href="index.php" class="text-xl font-bold tracking-tight hover:opacity-80 transition">
             CT-<span class="text-[var(--primary)]">ABS</span>
         </a>
         <span class="block text-[10px] uppercase tracking-wider text-[var(--text-light)] font-medium">Automated Bin Segregation</span>
@@ -936,7 +943,7 @@ function getColorGradient() {
                         <span class="w-1.5 h-1.5 rounded-full bg-[var(--primary)] pulse-dot"></span>
                         LIVE
                     </span>
-                    <a href="monitor.php?key=atb2026" target="_blank" class="btn-monitor text-xs px-3 py-1.5 rounded-xl shadow-sm">
+                    <a href="monitor.php" target="_blank" class="btn-monitor text-xs px-3 py-1.5 rounded-xl shadow-sm">
                         <i class="fas fa-external-link-alt text-[10px] mr-1"></i> Full Screen
                     </a>
                 </div>
@@ -1433,7 +1440,7 @@ function getColorGradient() {
             setInterval(updatePreviewTime, 1000);
 
             // ----- Sync live monitor data from monitor.php -----
-            const monitorApiUrl = 'monitor.php?key=atb2026&api=status&bin_id=<?php echo (int)$activeBinId; ?>';
+            const monitorApiUrl = 'monitor.php?api=status&bin_id=<?php echo (int)$activeBinId; ?>';
             function updateMonitorRing(type, value) {
                 const ring = document.getElementById('preview-' + type);
                 if (!ring) return;
