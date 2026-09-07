@@ -1,381 +1,131 @@
 /*
-  ============================================================================
-  SmartBin - ESP32 Firmware
-  ----------------------------------------------------------------------------
-  Peripherals:
-    - 4x Ultrasonic (HC-SR04) for fill‑level monitoring
-    - 4x Metal detector (digital output) – one per bin
-    - 4x Servo (SG90/MG995) – controls bin flaps/doors
-    - Wi‑Fi connection
-    - HTTP communication with PHP API (JSON)
+  SmartBin ESP32-S3 five-ultrasonic sensor test.
+  This stage reports fill levels only. Servo control is intentionally excluded.
 
-  Modes:
-    - AUTO   : system classifies waste (based on sensor data) and routes it
-               to the appropriate bin.
-    - MANUAL : waits for remote command (which bin to open) from the API.
+  Physical order: Sensor 1 is the right-most bin; Sensor 5 is the left-most bin.
 
-  The API endpoints (adjust to your server):
-    - POST /api/sensors.php   -> sends ultrasonic levels & metal status
-    - GET  /api/commands.php  -> retrieves mode and manual bin commands
-  ============================================================================
+  Important wiring change:
+    Sensor 5 trigger must use GPIO7 because GPIO35 is input-only on ESP32-S3.
+    Sensor 3 uses GPIO19/20, which may conflict with native USB on some boards.
 */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
-#include <Servo.h>
 
-// -------------------- WiFi Credentials --------------------
-const char* ssid = "YOUR_SSID";
-const char* password = "YOUR_PASSWORD";
+const char* WIFI_SSID = "AsusROG";
+const char* WIFI_PASSWORD = "den200512";
+const char* API_URL = "https://ct-abs.com/api/device.php?action=post_data";
+const char* API_KEY = "d7a3537446863c4e3ad51ac53a34fb99447dfe83bb287a46";
 
-// -------------------- API Endpoints --------------------
-const char* serverUrl = "http://your-server-ip/api";
-const char* sensorEndpoint = "/sensors.php";
-const char* commandEndpoint = "/commands.php";
+// Sensor order is physical right-to-left and matches the five monitor positions.
+// Sensor 1: right-most, Sensor 5: left-most.
+const uint8_t TRIGGER_PINS[5] = {17, 11, 19, 48, 7};
+const uint8_t ECHO_PINS[5] = {18, 10, 20, 47, 36};
 
-// -------------------- Pin Definitions --------------------
-// Ultrasonic sensors (TRIG, ECHO) for bins 1..4
-#define TRIG1  14
-#define ECHO1  27
-#define TRIG2  12
-#define ECHO2  26
-#define TRIG3  13
-#define ECHO3  25
-#define TRIG4  15
-#define ECHO4  33
+// Calibrate these values for the actual bin geometry.
+const float EMPTY_DISTANCE_CM = 40.0f;
+const float FULL_DISTANCE_CM = 5.0f;
+const unsigned long SEND_INTERVAL_MS = 30000;
+const unsigned long SENSOR_TIMEOUT_US = 30000;
 
-// Metal detectors (digital input) for bins 1..4
-#define METAL1  4
-#define METAL2  5
-#define METAL3  18
-#define METAL4  19
+unsigned long lastSend = 0;
 
-// Servo control pins for bins 1..4
-#define SERVO1  21
-#define SERVO2  22
-#define SERVO3  23
-#define SERVO4  32
-
-// -------------------- Global Objects --------------------
-Servo servos[4];
-int servoPins[4] = {SERVO1, SERVO2, SERVO3, SERVO4};
-
-// Ultrasonic pin pairs
-int trigPins[4] = {TRIG1, TRIG2, TRIG3, TRIG4};
-int echoPins[4] = {ECHO1, ECHO2, ECHO3, ECHO4};
-
-// Metal detector pins
-int metalPins[4] = {METAL1, METAL2, METAL3, METAL4};
-
-// -------------------- System State --------------------
-enum Mode { AUTO, MANUAL };
-Mode currentMode = AUTO;                // default: AUTO
-int manualTargetBin = -1;               // -1 = no manual command
-bool manualCommandPending = false;
-
-// -------------------- Timing --------------------
-unsigned long lastSensorSend = 0;
-const unsigned long SENSOR_INTERVAL = 30000;  // send every 30 sec
-unsigned long lastCommandCheck = 0;
-const unsigned long COMMAND_INTERVAL = 5000;  // check commands every 5 sec
-
-// -------------------- Function Prototypes --------------------
-void connectWiFi();
-float readUltrasonic(int trig, int echo);
-bool readMetal(int pin);
-void openBin(int binIndex);
-void closeBin(int binIndex);
-void closeAllBins();
-void sendSensorData();
-void checkCommands();
-void classifyAndRoute();
-void setMode(Mode mode);
-void handleManualCommand(int bin);
-
-// ============================================================================
-//  SETUP
-// ============================================================================
-void setup() {
-  Serial.begin(115200);
-  Serial.println("\nSmartBin ESP32 starting...");
-
-  // Initialize pins
-  for (int i = 0; i < 4; i++) {
-    pinMode(trigPins[i], OUTPUT);
-    pinMode(echoPins[i], INPUT);
-    pinMode(metalPins[i], INPUT_PULLUP);  // assume active LOW (metal detected -> LOW)
-    servos[i].attach(servoPins[i]);
-    servos[i].write(0);   // closed position (adjust according to your mechanism)
-  }
-
-  // Connect to Wi‑Fi
-  connectWiFi();
-
-  // Optionally send initial data
-  sendSensorData();
-}
-
-// ============================================================================
-//  MAIN LOOP
-// ============================================================================
-void loop() {
-  // 1. Check Wi‑Fi connection, reconnect if lost
-  if (WiFi.status() != WL_CONNECTED) {
-    connectWiFi();
-  }
-
-  // 2. Periodic sensor data transmission
-  if (millis() - lastSensorSend >= SENSOR_INTERVAL) {
-    sendSensorData();
-    lastSensorSend = millis();
-  }
-
-  // 3. Periodic command polling
-  if (millis() - lastCommandCheck >= COMMAND_INTERVAL) {
-    checkCommands();
-    lastCommandCheck = millis();
-  }
-
-  // 4. AUTO mode: classify and route waste (triggered by some event?)
-  //    For demonstration, we simulate a new waste item every 10 seconds.
-  //    In real implementation, you would trigger this by a button or
-  //    presence sensor at the input chute.
-  static unsigned long lastClassification = 0;
-  if (currentMode == AUTO && millis() - lastClassification >= 10000) {
-    classifyAndRoute();
-    lastClassification = millis();
-  }
-
-  // 5. MANUAL mode: execute pending command (if any)
-  if (currentMode == MANUAL && manualCommandPending) {
-    // Close all bins first, then open the target
-    closeAllBins();
-    if (manualTargetBin >= 0 && manualTargetBin < 4) {
-      openBin(manualTargetBin);
-      Serial.printf("Manual: opened bin %d\n", manualTargetBin);
-    }
-    manualCommandPending = false;
-    manualTargetBin = -1;
-  }
-
-  // Small delay to prevent watchdog issues
-  delay(100);
-}
-
-// ============================================================================
-//  Wi‑Fi CONNECTION
-// ============================================================================
 void connectWiFi() {
-  Serial.print("Connecting to Wi‑Fi");
-  WiFi.begin(ssid, password);
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  for (int attempt = 0; WiFi.status() != WL_CONNECTED && attempt < 30; attempt++) {
     delay(500);
-    Serial.print(".");
-    attempts++;
+    Serial.print('.');
   }
+  Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWi‑Fi connected!");
-    Serial.print("IP address: ");
+    Serial.print("Connected. IP: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println("\nWi‑Fi connection failed! Will retry later.");
+    Serial.println("Wi-Fi connection failed.");
   }
 }
 
-// ============================================================================
-//  ULTRASONIC READ (distance in cm)
-// ============================================================================
-float readUltrasonic(int trig, int echo) {
-  digitalWrite(trig, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trig, HIGH);
+float readDistanceCm(uint8_t triggerPin, uint8_t echoPin) {
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(3);
+  digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
-  digitalWrite(trig, LOW);
-  long duration = pulseIn(echo, HIGH, 30000);  // timeout 30ms
-  if (duration == 0) return -1;  // no echo
-  float distance = duration * 0.034 / 2;
-  return distance;
+  digitalWrite(triggerPin, LOW);
+
+  unsigned long duration = pulseIn(echoPin, HIGH, SENSOR_TIMEOUT_US);
+  if (duration == 0) return -1.0f;
+  return (float)duration * 0.0343f / 2.0f;
 }
 
-// ============================================================================
-//  METAL DETECTOR READ (true = metal detected)
-// ============================================================================
-bool readMetal(int pin) {
-  // Assumes active LOW (digital read = LOW when metal present)
-  return (digitalRead(pin) == LOW);
+float distanceToFill(float distanceCm) {
+  if (distanceCm < 0) return 0.0f;
+  float fill = (EMPTY_DISTANCE_CM - distanceCm) * 100.0f
+      / (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM);
+  return constrain(fill, 0.0f, 100.0f);
 }
 
-// ============================================================================
-//  SERVO CONTROL
-// ============================================================================
-void openBin(int binIndex) {
-  if (binIndex < 0 || binIndex >= 4) return;
-  servos[binIndex].write(90);   // open position (adjust angle as needed)
-}
-
-void closeBin(int binIndex) {
-  if (binIndex < 0 || binIndex >= 4) return;
-  servos[binIndex].write(0);    // closed position
-}
-
-void closeAllBins() {
-  for (int i = 0; i < 4; i++) {
-    closeBin(i);
-  }
-}
-
-// ============================================================================
-//  WASTE CLASSIFICATION (AUTO mode)
-//  Simulated logic: uses metal detectors and other sensors (if available).
-//  For now, we just simulate with a pseudo‑random classification.
-//  In practice, you would use AI camera, capacitive/inductive sensors.
-// ============================================================================
-int classifyWaste() {
-  // Placeholder: read metal detectors on all bins? 
-  // Actually classification should be done before routing.
-  // Here we simulate: 0=biodegradable, 1=plastic, 2=metal, 3=other.
-  // You can replace with real logic using sensors at the input.
-  static int lastClass = 0;
-  lastClass = (lastClass + 1) % 4;   // just cycle for demo
-  return lastClass;
-}
-
-void classifyAndRoute() {
-  if (currentMode != AUTO) return;
-
-  // Close all bins first
-  closeAllBins();
-  delay(200);
-
-  // Classify waste
-  int bin = classifyWaste();   // returns 0..3
-  Serial.printf("AUTO: classified as bin %d\n", bin);
-
-  // Open the target bin
-  openBin(bin);
-  delay(3000);                 // keep open for waste to fall
-  closeBin(bin);
-}
-
-// ============================================================================
-//  SEND SENSOR DATA TO API
-// ============================================================================
-void sendSensorData() {
+void sendReadings() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected, cannot send data.");
+    connectWiFi();
+    if (WiFi.status() != WL_CONNECTED) return;
+  }
+
+  StaticJsonDocument<768> payload;
+  JsonArray distances = payload.createNestedArray("ultrasonic_cm");
+  JsonArray fills = payload.createNestedArray("fill_levels");
+
+  for (int index = 0; index < 5; index++) {
+    float distance = readDistanceCm(TRIGGER_PINS[index], ECHO_PINS[index]);
+    float fill = distanceToFill(distance);
+    distances.add(distance);
+    fills.add(fill);
+    Serial.printf("Sensor %d (%s): %.1f cm, %.1f%% full\n",
+      index + 1, index == 0 ? "right-most" : index == 4 ? "left-most" : "middle",
+      distance, fill);
+    delay(60); // reduce cross-talk between ultrasonic sensors
+  }
+
+  payload["device_code"] = "ESP32_S3_5BIN_001";
+  payload["timestamp_ms"] = millis();
+
+  String body;
+  serializeJson(payload, body);
+
+  WiFiClientSecure client;
+  client.setInsecure(); // Replace with certificate validation before production use.
+  HTTPClient http;
+  if (!http.begin(client, API_URL)) {
+    Serial.println("Could not start HTTPS connection.");
     return;
   }
-
-  HTTPClient http;
-  String url = String(serverUrl) + String(sensorEndpoint);
-  http.begin(url);
   http.addHeader("Content-Type", "application/json");
-
-  // Build JSON payload
-  StaticJsonDocument<512> doc;
-  JsonArray ultrasonic = doc.createNestedArray("ultrasonic");
-  JsonArray metal = doc.createNestedArray("metal");
-
-  for (int i = 0; i < 4; i++) {
-    float dist = readUltrasonic(trigPins[i], echoPins[i]);
-    ultrasonic.add(dist);
-    metal.add(readMetal(metalPins[i]));
-  }
-
-  // Add mode and timestamp
-  doc["mode"] = (currentMode == AUTO) ? "AUTO" : "MANUAL";
-  doc["timestamp"] = millis();
-
-  String jsonStr;
-  serializeJson(doc, jsonStr);
-
-  Serial.print("Sending sensor data: ");
-  Serial.println(jsonStr);
-
-  int httpCode = http.POST(jsonStr);
-  if (httpCode > 0) {
-    String response = http.getString();
-    Serial.printf("HTTP response code: %d\n", httpCode);
-    Serial.println("Response: " + response);
-  } else {
-    Serial.printf("HTTP POST failed, error: %s\n", http.errorToString(httpCode).c_str());
-  }
+  http.addHeader("X-API-KEY", API_KEY);
+  int responseCode = http.POST(body);
+  Serial.printf("API response: %d\n", responseCode);
+  Serial.println(http.getString());
   http.end();
 }
 
-// ============================================================================
-//  CHECK COMMANDS FROM API
-// ============================================================================
-void checkCommands() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected, cannot check commands.");
-    return;
+void setup() {
+  Serial.begin(115200);
+  for (int index = 0; index < 5; index++) {
+    pinMode(TRIGGER_PINS[index], OUTPUT);
+    digitalWrite(TRIGGER_PINS[index], LOW);
+    pinMode(ECHO_PINS[index], INPUT);
   }
-
-  HTTPClient http;
-  String url = String(serverUrl) + String(commandEndpoint);
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-
-  // Optionally send device ID to get specific commands
-  StaticJsonDocument<64> req;
-  req["device"] = "ESP32_001";
-  String reqStr;
-  serializeJson(req, reqStr);
-
-  int httpCode = http.POST(reqStr);   // or GET if your API expects GET
-  if (httpCode == HTTP_CODE_OK) {
-    String response = http.getString();
-    Serial.println("Command response: " + response);
-
-    // Parse JSON response
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, response);
-    if (!error) {
-      String mode = doc["mode"] | "AUTO";
-      if (mode == "MANUAL") {
-        setMode(MANUAL);
-        int bin = doc["bin"] | -1;
-        if (bin >= 0 && bin < 4) {
-          manualTargetBin = bin;
-          manualCommandPending = true;
-        }
-      } else {
-        setMode(AUTO);
-      }
-    } else {
-      Serial.println("Failed to parse command JSON");
-    }
-  } else {
-    Serial.printf("Command check failed, HTTP code: %d\n", httpCode);
-  }
-  http.end();
+  connectWiFi();
+  sendReadings();
+  lastSend = millis();
 }
 
-// ============================================================================
-//  MODE CONTROL
-// ============================================================================
-void setMode(Mode mode) {
-  if (currentMode != mode) {
-    currentMode = mode;
-    Serial.printf("Mode changed to %s\n", (mode == AUTO) ? "AUTO" : "MANUAL");
-    if (mode == AUTO) {
-      // Close all bins when switching to AUTO
-      closeAllBins();
-      manualCommandPending = false;
-    }
+void loop() {
+  if (millis() - lastSend >= SEND_INTERVAL_MS) {
+    sendReadings();
+    lastSend = millis();
   }
-}
-
-// ============================================================================
-//  (Optional) Handle manual command from local web interface or serial
-// ============================================================================
-void handleManualCommand(int bin) {
-  if (currentMode == MANUAL && bin >= 0 && bin < 4) {
-    closeAllBins();
-    openBin(bin);
-    Serial.printf("Manual command: opened bin %d\n", bin);
-  }
+  delay(50);
 }

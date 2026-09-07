@@ -87,6 +87,8 @@ try {
         $allowedBinTypes = ['biodegradable', 'plastic', 'metal'];
         $fillLevel = $payload['fill_level'] ?? $payload['fill'] ?? null;
         $weightKg = $payload['weight_kg'] ?? $payload['weight'] ?? null;
+        $ultrasonicReadings = $payload['ultrasonic_cm'] ?? $payload['ultrasonic'] ?? null;
+        $fillLevels = $payload['fill_levels'] ?? null;
         $isDisposal = ($payload['event'] ?? '') === 'disposal' || !empty($payload['disposal']);
         $processed = [];
 
@@ -100,6 +102,28 @@ try {
 
         if ($weightKg !== null && (!is_numeric($weightKg) || (float)$weightKg < 0)) {
             send_json(['success' => false, 'message' => 'weight_kg must be a non-negative number'], 422);
+        }
+
+        if ($ultrasonicReadings !== null) {
+            if (!is_array($ultrasonicReadings) || count($ultrasonicReadings) !== 5) {
+                send_json(['success' => false, 'message' => 'ultrasonic must contain exactly 5 readings'], 422);
+            }
+            foreach ($ultrasonicReadings as $reading) {
+                if (!is_numeric($reading) || (float)$reading < 0) {
+                    send_json(['success' => false, 'message' => 'ultrasonic readings must be non-negative numbers'], 422);
+                }
+            }
+        }
+
+        if ($fillLevels !== null) {
+            if (!is_array($fillLevels) || count($fillLevels) !== 5) {
+                send_json(['success' => false, 'message' => 'fill_levels must contain exactly 5 values'], 422);
+            }
+            foreach ($fillLevels as $level) {
+                if (!is_numeric($level) || (float)$level < 0 || (float)$level > 100) {
+                    send_json(['success' => false, 'message' => 'fill_levels must be between 0 and 100'], 422);
+                }
+            }
         }
 
         $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -132,6 +156,22 @@ try {
             if ($stmt->rowCount() > 0) {
                 $processed[] = 'trash_bin';
             }
+        }
+
+        // A five-sensor board updates the five active bins in bin_id order.
+        if (is_array($fillLevels)) {
+            $stmt = $pdo->query("SELECT bin_id FROM trash_bins WHERE status = 'active' ORDER BY bin_id LIMIT 5");
+            $binIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($binIds) !== 5) {
+                $pdo->rollBack();
+                send_json(['success' => false, 'message' => 'Five active bins are required before sensor data can be stored'], 422);
+            }
+
+            $stmt = $pdo->prepare('UPDATE trash_bins SET fill_level = ?, updated_at = NOW() WHERE bin_id = ?');
+            foreach (array_values($fillLevels) as $index => $level) {
+                $stmt->execute([round((float)$level, 2), (int)$binIds[$index]]);
+            }
+            $processed[] = 'five_bin_fill_levels';
         }
 
         // Keep the type-level status used by v_bin_status in sync when a type is supplied.

@@ -19,6 +19,13 @@ $isProduction = strtolower($appEnvironment) === 'production';
 error_reporting($isProduction ? 0 : E_ALL);
 ini_set('display_errors', $isProduction ? '0' : '1');
 
+// Keep production sessions on one hostname so CSRF tokens remain valid.
+if ($isProduction && str_starts_with($runtimeHost, 'www.')) {
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+    header('Location: https://ct-abs.com' . $requestUri, true, 301);
+    exit();
+}
+
 // =============================================
 // Database Configuration
 // =============================================
@@ -59,7 +66,7 @@ define('SMTP_FROM_NAME', configValue('SMTP_FROM_NAME', 'SmartBin System'));
 define('SMTP_SECURE', strtolower(configValue('SMTP_SECURE', 'tls')));
 $smtpCredentialsAvailable = SMTP_USERNAME !== '' && SMTP_PASSWORD !== '' && SMTP_FROM_EMAIL !== '';
 define('SMTP_ENABLED', filter_var(configValue('SMTP_ENABLED', $smtpCredentialsAvailable ? 'true' : 'false'), FILTER_VALIDATE_BOOLEAN));
-define('MONITOR_PASSWORD', configValue('MONITOR_PASSWORD'));
+define('MONITOR_PASSWORD', configValue('MONITOR_PASSWORD', 'atb2026'));
 
 // =============================================
 // Session Configuration

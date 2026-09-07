@@ -446,6 +446,20 @@ function getColorGradient() {
             transform: translateY(-2px);
         }
         
+            .monitor-embed {
+                display: block;
+                width: 100%;
+                height: 760px;
+                border: 0;
+                border-radius: 14px;
+                background: var(--card-bg);
+            }
+        
+            .monitor-card > .legacy-monitor-panel,
+            .monitor-card > .legacy-monitor-footer {
+                display: none;
+            }
+        
         /* Bin Card inside Monitor - NEW DESIGN */
         .bin-card {
             background: rgba(255, 255, 255, 0.70);
@@ -951,7 +965,9 @@ function getColorGradient() {
             
             <!-- Monitor Card - Green Theme -->
             <div class="monitor-card p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <iframe class="monitor-embed" src="monitor.php" title="Live five-bin community monitor" loading="lazy"></iframe>
+
+                <div class="legacy-monitor-panel grid grid-cols-1 md:grid-cols-3 gap-5">
                     
                     <!-- Biodegradable -->
                     <div class="bin-card p-5 text-center">
@@ -1045,7 +1061,7 @@ function getColorGradient() {
                 </div>
                 
                 <!-- Monitor Footer - Green Theme -->
-                <div class="mt-5 pt-4 border-t border-[var(--monitor-border)] flex flex-wrap justify-between items-center text-[10px] font-medium monitor-text-light gap-2">
+                <div class="legacy-monitor-footer mt-5 pt-4 border-t border-[var(--monitor-border)] flex flex-wrap justify-between items-center text-[10px] font-medium monitor-text-light gap-2">
                     <span><i class="fas fa-signal mr-1.5"></i> Signal: Strong</span>
                     <span><i class="fas fa-bolt mr-1.5"></i> Connected</span>
                     <span><i class="fas fa-sync-alt mr-1.5"></i> <span id="previewTime">Updating...</span></span>
