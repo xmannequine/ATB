@@ -194,6 +194,22 @@ try {
     }
     $trendLabels = $days;
     $trendValues = $dayCounts;
+
+    // Get fill levels by bin type before AI suggestion checks
+    $fillLevels = [
+        'biodegradable' => 0,
+        'plastic' => 0,
+        'metal' => 0
+    ];
+    foreach ($binStatus as $status) {
+        $binType = strtolower((string)($status['bin_type'] ?? ''));
+        if (array_key_exists($binType, $fillLevels)) {
+            $fillLevels[$binType] = (float)$status['fill_level'];
+        }
+    }
+    $bioFill = $fillLevels['biodegradable'];
+    $plasticFill = $fillLevels['plastic'];
+    $metalFill = $fillLevels['metal'];
     
     // 3. AI Suggestion - rule-based
     $aiSuggestion = '';

@@ -38,28 +38,109 @@ if (!$isAuthorized) {
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Monitor Access - SmartBin</title>
+        <title>Monitor Access · SmartBin</title>
         <style>
-            :root { color-scheme: light; font-family: Arial, sans-serif; }
+            :root {
+                color-scheme: light;
+                --ink: #14261b;
+                --muted: #6b7f70;
+                --line: #d9e4db;
+                --brand: #2f7d43;
+            }
             * { box-sizing: border-box; }
-            body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #eef5ef; color: #17321f; }
-            main { width: min(100%, 420px); padding: 32px; background: #fff; border: 1px solid #d4e2d6; border-radius: 16px; box-shadow: 0 18px 50px rgba(20, 61, 31, .12); }
-            h1 { margin: 0 0 8px; font-size: 28px; }
-            p { color: #5b6d60; }
-            label { display: block; margin: 24px 0 8px; font-weight: 700; }
-            input { width: 100%; padding: 14px; border: 1px solid #b9cdbd; border-radius: 8px; font-size: 18px; }
-            button { width: 100%; margin-top: 16px; padding: 14px; border: 0; border-radius: 8px; background: #2f7d43; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
-            .error { color: #a82d2d; font-weight: 700; }
+            body {
+                margin: 0;
+                min-height: 100vh;
+                display: grid;
+                place-items: center;
+                padding: 24px;
+                color: var(--ink);
+                font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background:
+                    radial-gradient(900px 500px at 12% -5%, #dcefe0, transparent 60%),
+                    radial-gradient(800px 520px at 105% 105%, #e4f0e6, transparent 55%),
+                    #eef3ee;
+            }
+            .gate {
+                width: min(100%, 420px);
+                padding: 34px 30px 30px;
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 22px;
+                box-shadow: 0 30px 70px -35px rgba(16, 44, 26, .45), 0 2px 4px rgba(16, 44, 26, .05);
+            }
+            .gate__mark {
+                width: 52px; height: 52px;
+                display: grid; place-items: center;
+                border-radius: 15px;
+                color: #fff;
+                background: linear-gradient(150deg, #3f9a56, #22663a);
+                box-shadow: 0 12px 26px -14px rgba(35, 102, 58, 1);
+            }
+            h1 { margin: 22px 0 6px; font-size: 26px; letter-spacing: -.02em; }
+            .gate__sub { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+            .gate__error {
+                display: flex; align-items: center; gap: 9px;
+                margin: 18px 0 0; padding: 11px 13px;
+                border: 1px solid #f4cdca; border-radius: 11px;
+                background: #fdeceb; color: #a82d2d;
+                font-size: 13.5px; font-weight: 600;
+            }
+            .gate__error::before {
+                content: "";
+                width: 8px; height: 8px; flex: none;
+                border-radius: 50%; background: #d64a44;
+            }
+            .gate label {
+                display: block; margin: 24px 0 8px;
+                font-size: 11.5px; font-weight: 800;
+                letter-spacing: .12em; text-transform: uppercase;
+                color: var(--muted);
+            }
+            .gate input {
+                width: 100%; padding: 14px 15px;
+                font-family: inherit; font-size: 17px; color: var(--ink);
+                background: #f7faf7;
+                border: 1px solid var(--line); border-radius: 12px;
+                outline: none;
+                transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+            }
+            .gate input:focus {
+                background: #fff;
+                border-color: var(--brand);
+                box-shadow: 0 0 0 4px rgba(47, 125, 67, .14);
+            }
+            .gate button {
+                width: 100%; margin-top: 16px; padding: 15px;
+                font-family: inherit; font-size: 15.5px; font-weight: 700;
+                color: #fff; cursor: pointer;
+                border: 0; border-radius: 12px;
+                background: linear-gradient(180deg, #37914e, #256b38);
+                box-shadow: 0 12px 24px -14px rgba(35, 102, 58, 1);
+                transition: filter .2s ease, transform .15s ease, box-shadow .2s ease;
+            }
+            .gate button:hover { filter: brightness(1.06); box-shadow: 0 16px 28px -14px rgba(35, 102, 58, 1); }
+            .gate button:active { transform: translateY(1px); }
         </style>
     </head>
     <body>
-        <main>
+        <main class="gate">
+            <div class="gate__mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7h18"/>
+                    <path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                    <path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/>
+                    <path d="M10 11v6M14 11v6"/>
+                </svg>
+            </div>
             <h1>SmartBin Monitor</h1>
-            <p>Enter the monitor access code to continue.</p>
-            <?php if ($hasAttempt): ?><p class="error">Invalid access code.</p><?php endif; ?>
+            <p class="gate__sub">Enter the monitor access code to continue.</p>
+            <?php if ($hasAttempt): ?>
+                <p class="gate__error" role="alert">Invalid access code. Please try again.</p>
+            <?php endif; ?>
             <form method="post">
                 <label for="key">Access code</label>
-                <input id="key" name="key" type="password" autocomplete="current-password" required autofocus>
+                <input id="key" name="key" type="password" autocomplete="current-password" spellcheck="false" required autofocus>
                 <button type="submit">Open monitor</button>
             </form>
         </main>
@@ -70,6 +151,13 @@ if (!$isAuthorized) {
 }
 
 require_once __DIR__ . '/config/config.php';
+
+$cameraUrl = APP_ENV === 'local'
+    ? 'http://10.180.136.216:81/stream'
+    : '/uploads/camera/latest.jpg?t=' . time();
+$cameraIsLocalStream = APP_ENV === 'local';
+$cameraImagePath = __DIR__ . '/uploads/camera/latest.jpg';
+$cameraImageAvailable = $cameraIsLocalStream || is_file($cameraImagePath);
 
 $binDefinitions = [
     ['key' => 'reject', 'label' => 'Reject Waste', 'icon' => '!', 'color' => '#c94b4b', 'terms' => ['reject', 'residual', 'general', 'other']],
@@ -127,51 +215,490 @@ function monitorStatus($fill, $row) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="60">
-    <title>Five-Bin Monitor - SmartBin</title>
+    <title>Five-Bin Monitor · SmartBin</title>
     <style>
-        :root { font-family: Arial, sans-serif; color: #183124; background: #f2f6f1; }
+        :root {
+            color-scheme: light;
+            --bg: #eef3ee;
+            --surface: #ffffff;
+            --line: #d9e4db;
+            --ink: #14261b;
+            --ink-2: #3d5747;
+            --muted: #708a77;
+            --brand: #2f7d43;
+            --radius: 18px;
+            --shadow-sm: 0 1px 2px rgba(16, 44, 26, .05), 0 10px 26px -18px rgba(16, 44, 26, .35);
+            --shadow-lg: 0 26px 54px -26px rgba(16, 44, 26, .38);
+        }
+
         * { box-sizing: border-box; }
-        body { margin: 0; min-height: 100vh; padding: clamp(16px, 3vw, 42px); background: radial-gradient(circle at top right, #dcecdf, transparent 42%), #f2f6f1; }
-        header { max-width: 1500px; margin: 0 auto 28px; display: flex; justify-content: space-between; gap: 20px; align-items: end; }
-        h1 { margin: 0; font-size: clamp(28px, 4vw, 52px); letter-spacing: .02em; }
-        header p { margin: 8px 0 0; color: #5d7463; }
-        time { color: #5d7463; white-space: nowrap; }
-        .notice { max-width: 1500px; margin: 0 auto 18px; padding: 12px 16px; border-radius: 8px; background: #fff4df; color: #80551f; }
-        .bins { max-width: 1500px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
-        .bin { min-width: 0; padding: 22px 16px; background: #fff; border: 1px solid #d5e2d6; border-top: 7px solid var(--color); border-radius: 12px; box-shadow: 0 12px 28px rgba(30, 70, 39, .08); }
-        .position { color: #78907d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
-        .icon { width: 62px; height: 62px; margin: 18px auto; display: grid; place-items: center; border-radius: 50%; background: #edf5ee; color: var(--color); font-size: 15px; font-weight: 800; }
-        h2 { min-height: 48px; margin: 0; text-align: center; font-size: clamp(16px, 1.5vw, 22px); }
-        .value { margin: 20px 0 8px; text-align: center; color: var(--color); font-size: clamp(32px, 4vw, 56px); font-weight: 800; }
-        .meter { height: 10px; overflow: hidden; background: #e7eee8; border-radius: 10px; }
-        .meter span { display: block; height: 100%; width: var(--fill); background: var(--color); border-radius: inherit; }
-        .status { display: block; margin-top: 16px; text-align: center; font-weight: 700; }
-        .available { color: #2f7d43; }.high { color: #b4771e; }.full, .offline { color: #b33d3d; }.maintenance { color: #657486; }
-        .details { margin-top: 12px; text-align: center; color: #78907d; font-size: 12px; overflow-wrap: anywhere; }
-        footer { max-width: 1500px; margin: 24px auto 0; color: #78907d; font-size: 13px; }
-        @media (max-width: 1000px) { .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); } header { align-items: start; flex-direction: column; } }
-        @media (max-width: 560px) { .bins { grid-template-columns: 1fr; } .bin { padding: 18px; } }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: clamp(16px, 2.4vw, 40px);
+            color: var(--ink);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            background:
+                radial-gradient(1100px 560px at 100% -12%, #dcefe0, transparent 58%),
+                radial-gradient(900px 520px at -10% 108%, #e5f0e7, transparent 55%),
+                var(--bg);
+            background-attachment: fixed;
+        }
+
+        .shell { width: min(1560px, 100%); margin-inline: auto; }
+
+        /* ---------- Top bar ---------- */
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: clamp(18px, 2.2vw, 28px);
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand__mark {
+            width: 52px; height: 52px; flex: none;
+            display: grid; place-items: center;
+            border-radius: 15px;
+            color: #fff;
+            background: linear-gradient(150deg, #3f9a56, #22663a);
+            box-shadow: 0 12px 26px -14px rgba(35, 102, 58, 1);
+        }
+        .brand h1 {
+            margin: 0;
+            font-size: clamp(24px, 2.6vw, 34px);
+            letter-spacing: -.025em;
+            line-height: 1.1;
+        }
+        .brand p {
+            margin: 5px 0 0;
+            font-size: 13.5px;
+            color: var(--muted);
+        }
+
+        .clock {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, .78);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(8px);
+        }
+        .clock svg { color: var(--brand); flex: none; }
+        .clock__label {
+            display: block;
+            font-size: 10px; font-weight: 800;
+            letter-spacing: .15em; text-transform: uppercase;
+            color: var(--muted);
+        }
+        .clock time {
+            font-size: 14.5px; font-weight: 700;
+            color: var(--ink-2);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ---------- Notice ---------- */
+        .notice {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 18px;
+            padding: 12px 16px;
+            border: 1px solid #f0dcb4;
+            border-radius: 12px;
+            background: #fff7e8;
+            color: #80551f;
+            font-size: 13.5px;
+            font-weight: 600;
+        }
+        .notice::before {
+            content: "";
+            width: 8px; height: 8px; flex: none;
+            border-radius: 50%; background: #d99b2b;
+        }
+
+        /* ---------- Bin grid ---------- */
+        .bins {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: clamp(12px, 1.1vw, 18px);
+        }
+
+        .bin {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 18px 18px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: transform .25s ease, box-shadow .25s ease;
+        }
+        .bin::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 6px;
+            background: var(--color);
+        }
+
+        @media (hover: hover) {
+            .bin:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+        }
+
+        .bin__top {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            margin-top: 4px;
+        }
+        .bin__pos {
+            font-size: 10.5px; font-weight: 800;
+            letter-spacing: .15em; text-transform: uppercase;
+            color: var(--muted);
+        }
+        .bin__icon {
+            width: 38px; height: 38px; flex: none;
+            display: grid; place-items: center;
+            border-radius: 11px;
+            font-size: 11.5px; font-weight: 800; letter-spacing: .02em;
+            color: var(--color);
+            background: #f3f7f4;
+            box-shadow: inset 0 0 0 1px rgba(16, 44, 26, .07);
+        }
+
+        .bin__name {
+            min-height: 41px;
+            margin: 16px 0 0;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.35;
+            letter-spacing: -.01em;
+            color: var(--ink-2);
+        }
+
+        .bin__value {
+            display: flex; align-items: baseline; gap: 3px;
+            margin-top: 12px;
+            font-size: clamp(34px, 3.3vw, 50px);
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -.035em;
+            color: var(--color);
+            font-variant-numeric: tabular-nums;
+        }
+        .bin__value small { font-size: .4em; font-weight: 700; opacity: .62; }
+
+        .meter {
+            margin-top: 14px;
+            height: 8px;
+            border-radius: 99px;
+            background: #e9f0ea;
+            box-shadow: inset 0 1px 2px rgba(16, 44, 26, .07);
+            overflow: hidden;
+        }
+        .meter span {
+            display: block;
+            height: 100%;
+            width: var(--fill);
+            border-radius: inherit;
+            background: var(--color);
+            animation: meterGrow .9s cubic-bezier(.22, .9, .24, 1) both;
+        }
+        @keyframes meterGrow { from { width: 0; } }
+
+        .bin__foot {
+            display: flex; flex-direction: column; gap: 8px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px dashed rgba(16, 44, 26, .1);
+        }
+
+        .pill {
+            display: inline-flex; align-items: center; gap: 7px;
+            align-self: flex-start;
+            padding: 5px 11px;
+            border: 1px solid var(--line);
+            border-radius: 99px;
+            font-size: 11.5px; font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: var(--ink-2);
+            background: #f4f7f4;
+        }
+        .pill i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+
+        .pill.available   { color: #2f7d43; background: #eaf6ee; border-color: #c8e5d2; }
+        .pill.high        { color: #a2670f; background: #fdf4e3; border-color: #f1ddb6; }
+        .pill.full        { color: #b3342f; background: #fdecea; border-color: #f4cdca; }
+        .pill.offline     { color: #78838f; background: #f2f4f6; border-color: #dee3e8; }
+        .pill.maintenance { color: #56677e; background: #eef2f8; border-color: #d7e0eb; }
+
+        .bin__meta {
+            font-size: 12px;
+            color: var(--muted);
+            overflow-wrap: anywhere;
+        }
+
+        /* ---------- Camera panel ---------- */
+        .camera {
+            margin-top: clamp(20px, 2.2vw, 30px);
+            border: 1px solid #1d3327;
+            border-radius: var(--radius);
+            background: #0f1c15;
+            box-shadow: 0 34px 74px -44px rgba(8, 28, 16, .95);
+            overflow: hidden;
+        }
+        .camera__head {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+            padding: 16px clamp(16px, 1.8vw, 22px);
+            background: linear-gradient(180deg, #16291e, #101d15);
+            border-bottom: 1px solid #1d3327;
+        }
+        .camera__title { display: flex; align-items: center; gap: 13px; }
+        .camera__title .glyph {
+            width: 40px; height: 40px; flex: none;
+            display: grid; place-items: center;
+            border-radius: 12px;
+            color: #7fe0a3;
+            background: rgba(63, 154, 86, .14);
+            box-shadow: inset 0 0 0 1px rgba(127, 224, 163, .22);
+        }
+        .camera__title h2 {
+            margin: 0;
+            font-size: clamp(16px, 1.5vw, 19px);
+            letter-spacing: -.01em;
+            color: #e9f5ee;
+        }
+        .camera__title p {
+            margin: 3px 0 0;
+            font-size: 12.5px;
+            color: #7fa38d;
+        }
+
+        .live {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 13px;
+            border: 1px solid rgba(239, 68, 68, .38);
+            border-radius: 99px;
+            background: rgba(239, 68, 68, .12);
+            color: #ff8f88;
+            font-size: 10.5px; font-weight: 800;
+            letter-spacing: .16em; text-transform: uppercase;
+        }
+        .live i {
+            width: 7px; height: 7px; flex: none;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: livePulse 2s ease-out infinite;
+        }
+        @keyframes livePulse {
+            0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, .65); }
+            70%  { box-shadow: 0 0 0 9px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .camera__frame {
+            padding: clamp(10px, 1.1vw, 16px);
+            background: #0b1510;
+        }
+        .camera__screen {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            min-height: 260px;
+            border: 1px solid #1e3529;
+            border-radius: 12px;
+            background: #000;
+            overflow: hidden;
+        }
+        .camera__screen img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            display: block;
+            object-fit: contain;
+        }
+        .camera-unavailable {
+            min-height: 260px;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            color: #b6f0cc;
+            text-align: center;
+            font-size: 14px;
+        }
+        .camera__tag {
+            position: absolute;
+            top: 10px; left: 10px;
+            z-index: 2;
+            padding: 5px 10px;
+            border-radius: 7px;
+            background: rgba(6, 18, 11, .62);
+            color: #b6f0cc;
+            font-size: 10.5px; font-weight: 700;
+            letter-spacing: .12em; text-transform: uppercase;
+            pointer-events: none;
+            backdrop-filter: blur(3px);
+        }
+
+        /* ---------- Footer ---------- */
+        .pagefoot {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+            margin-top: clamp(18px, 2vw, 26px);
+            padding-bottom: 6px;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+        .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+        .legend span {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 11px 5px 8px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 99px;
+            font-weight: 600;
+            color: var(--ink-2);
+        }
+        .legend i {
+            width: 9px; height: 9px; flex: none;
+            border-radius: 3px;
+            background: var(--c);
+        }
+        .legend b { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 1280px) {
+            .bins { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 860px) {
+            .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .topbar { align-items: flex-start; flex-direction: column; }
+        }
+        @media (max-width: 520px) {
+            .bins { grid-template-columns: 1fr; }
+            .bin__name { min-height: 0; }
+            .camera__screen { min-height: 200px; aspect-ratio: 4 / 3; }
+            .pagefoot { flex-direction: column; align-items: flex-start; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .001ms !important;
+            }
+        }
     </style>
 </head>
 <body>
-    <header>
-        <div><h1>Five-Bin Monitor</h1><p>Live waste-separation status, left to right</p></div>
-        <time><?php echo htmlspecialchars(date('M d, Y h:i A')); ?></time>
-    </header>
-    <?php if ($loadError): ?><div class="notice"><?php echo htmlspecialchars($loadError); ?></div><?php endif; ?>
-    <section class="bins" aria-label="Five waste bins">
-        <?php foreach ($binDefinitions as $index => $definition): $row = $assigned[$index]; $fill = monitorFill($row); $status = monitorStatus($fill, $row); ?>
-            <article class="bin" style="--color: <?php echo $definition['color']; ?>; --fill: <?php echo $fill; ?>%">
-                <div class="position">Position <?php echo $index + 1; ?></div>
-                <div class="icon" aria-hidden="true"><?php echo $definition['icon']; ?></div>
-                <h2><?php echo htmlspecialchars($definition['label']); ?></h2>
-                <div class="value"><?php echo number_format($fill, 0); ?>%</div>
-                <div class="meter" role="progressbar" aria-valuenow="<?php echo $fill; ?>" aria-valuemin="0" aria-valuemax="100"><span></span></div>
-                <span class="status <?php echo $status['class']; ?>"><?php echo htmlspecialchars($status['label']); ?></span>
-                <div class="details"><?php echo $row ? htmlspecialchars(($row['bin_name'] ?: $row['bin_code'] ?: 'Connected')) : 'Not configured'; ?></div>
-            </article>
-        <?php endforeach; ?>
-    </section>
-    <footer>Order: Reject Waste, Shredded Biodegradable, Metal Waste, Shredded Thin Plastic, Plastic Bottle.</footer>
+    <div class="shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7h18"/>
+                        <path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+                        <path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/>
+                        <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Five-Bin Monitor</h1>
+                    <p>Live waste-separation status, left to right</p>
+                </div>
+            </div>
+            <div class="clock">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 7v5l3 2"/>
+                </svg>
+                <div>
+                    <span class="clock__label">Updated</span>
+                    <time><?php echo htmlspecialchars(date('M d, Y h:i A')); ?></time>
+                </div>
+            </div>
+        </header>
+
+        <?php if ($loadError): ?>
+            <div class="notice" role="status"><?php echo htmlspecialchars($loadError); ?></div>
+        <?php endif; ?>
+
+        <section class="bins" aria-label="Five waste bins">
+            <?php foreach ($binDefinitions as $index => $definition): $row = $assigned[$index]; $fill = monitorFill($row); $status = monitorStatus($fill, $row); ?>
+                <article class="bin" style="--color: <?php echo $definition['color']; ?>; --fill: <?php echo $fill; ?>%">
+                    <div class="bin__top">
+                        <span class="bin__pos">Position <?php echo $index + 1; ?></span>
+                        <span class="bin__icon" aria-hidden="true"><?php echo htmlspecialchars($definition['icon']); ?></span>
+                    </div>
+                    <h2 class="bin__name"><?php echo htmlspecialchars($definition['label']); ?></h2>
+                    <div class="bin__value"><?php echo number_format($fill, 0); ?><small>%</small></div>
+                    <div class="meter" role="progressbar" aria-valuenow="<?php echo $fill; ?>" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+                    <div class="bin__foot">
+                        <span class="pill <?php echo $status['class']; ?>"><i aria-hidden="true"></i><?php echo htmlspecialchars($status['label']); ?></span>
+                        <span class="bin__meta"><?php echo $row ? htmlspecialchars(($row['bin_name'] ?: $row['bin_code'] ?: 'Connected')) : 'Not configured'; ?></span>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </section>
+
+        <section class="camera" aria-labelledby="camera-heading">
+            <div class="camera__head">
+                <div class="camera__title">
+                    <span class="glyph" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 7l-7 5 7 5V7z"/>
+                            <rect x="1" y="5" width="15" height="14" rx="2"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <h2 id="camera-heading">ESP32-CAM Live Camera</h2>
+                        <p>Real-time view of the bin station</p>
+                    </div>
+                </div>
+                <span class="live"><i aria-hidden="true"></i>Live</span>
+            </div>
+            <div class="camera__frame">
+                <div class="camera__screen">
+                    <span class="camera__tag">CAM 01 · ESP32-CAM</span>
+                    <?php if (!$cameraImageAvailable): ?>
+                        <div class="camera-unavailable" role="status">Camera image unavailable</div>
+                    <?php elseif ($cameraIsLocalStream): ?>
+                        <img src="<?php echo htmlspecialchars($cameraUrl); ?>" alt="ESP32-CAM local live stream">
+                    <?php else: ?>
+                        <img id="camera-snapshot" src="<?php echo htmlspecialchars($cameraUrl); ?>" alt="Latest ESP32-CAM snapshot" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                        <div class="camera-unavailable" role="status" hidden>Camera image unavailable</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+
+        <?php if (!$cameraIsLocalStream && $cameraImageAvailable): ?>
+            <script>
+                setInterval(function () {
+                    var camera = document.getElementById('camera-snapshot');
+                    if (camera) {
+                        camera.src = '/uploads/camera/latest.jpg?t=' + Date.now();
+                    }
+                }, 30000);
+            </script>
+        <?php endif; ?>
+
+        <footer class="pagefoot">
+            <div class="legend" aria-label="Bin order, left to right">
+                <?php foreach ($binDefinitions as $index => $definition): ?>
+                    <span style="--c: <?php echo $definition['color']; ?>">
+                        <i aria-hidden="true"></i>
+                        <b><?php echo $index + 1; ?></b>
+                        <?php echo htmlspecialchars($definition['label']); ?>
+                    </span>
+                <?php endforeach; ?>
+            </div>
+            <div>Auto-refreshes every 60 seconds.</div>
+        </footer>
+    </div>
 </body>
-</html>
+</html> 
