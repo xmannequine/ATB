@@ -1,3 +1,22 @@
+# Python
+ai/venv/
+ai/__pycache__/
+**/__pycache__/
+*.pyc
+
+# AI datasets - kept locally, not uploaded to GitHub
+ai/dataset/
+ai/dataset_clean/
+
+# TensorFlow/Keras generated files
+ai/model/
+
+# Logs
+logs/
+*.log
+
+# Secrets / credentials
 config/camera_secret.php
-logs/otp_mail.log
-logs/otp_mail.log
+
+# Environment / local configuration
+.env

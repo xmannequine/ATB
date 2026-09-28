@@ -18,9 +18,6 @@ if (isLoggedIn()) {
 $error = '';
 $username = '';
 $step = 'login';
-$email = '';
-$user_id = 0;
-$otp_display = '';
 
 // Process login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -42,122 +39,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user = $stmt->fetch();
                 
                 if ($user && password_verify($password, $user['password_hash'])) {
-                    $otp = generateOTP();
-                    $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-                    
-                    $_SESSION['otp'] = $otp;
-                    $_SESSION['otp_expiry'] = $otp_expiry;
-                    $_SESSION['otp_user_id'] = $user['user_id'];
-                    $_SESSION['otp_attempts'] = 0;
-                    
-                    $stmt = $pdo->prepare("INSERT INTO otp_logs (user_id, otp, expiry, ip_address, user_agent, purpose, created_at) VALUES (?, ?, ?, ?, ?, 'login', NOW())");
-                    $stmt->execute([$user['user_id'], password_hash($otp, PASSWORD_DEFAULT), $otp_expiry, $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']]);
-                    
-                    if (sendOTPEmail($user['email'], $otp, $user['full_name'])) {
-                        $step = 'verify_otp';
-                        $email = $user['email'];
-                        $user_id = $user['user_id'];
-                        $success_message = "OTP sent to " . maskEmail($user['email']);
-                        if (isLocalTestMode()) {
-                            $otp_display = $otp;
-                            $success_message = 'Local test mode: OTP generated successfully.';
-                        }
-                    } else {
-                        $error = 'Unable to send the OTP email. Please contact the administrator.';
-                        unset($_SESSION['otp'], $_SESSION['otp_expiry'], $_SESSION['otp_user_id'], $_SESSION['otp_attempts']);
+                    session_regenerate_id(true);
+                    $_SESSION['user_id'] = $user['user_id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['full_name'] = $user['full_name'];
+                    $_SESSION['role'] = $user['role'];
+
+                    $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+                    $stmt->execute([$user['user_id']]);
+
+                    if (function_exists('logActivity')) {
+                        logActivity($user['user_id'], 'login', 'User logged in');
                     }
+
+                    header('Location: index.php');
+                    exit();
                 } else {
                     $error = 'Invalid username/email or password.';
                 }
             } catch(PDOException $e) {
                 $error = 'An error occurred. Please try again.';
                 error_log("Login error: " . $e->getMessage());
-            }
-        }
-    } elseif ($action === 'verify_otp') {
-        $entered_otp = sanitize($_POST['otp'] ?? '');
-        $user_id = (int)($_POST['user_id'] ?? 0);
-        
-        if (empty($entered_otp)) {
-            $error = 'Please enter the OTP.';
-        } elseif ($user_id != $_SESSION['otp_user_id']) {
-            $error = 'Invalid session.';
-            $step = 'login';
-        } else {
-            $otp_expiry = strtotime($_SESSION['otp_expiry'] ?? '');
-            if ($otp_expiry < time()) {
-                $error = 'OTP has expired.';
-                $step = 'login';
-            } elseif ($entered_otp === $_SESSION['otp']) {
-                try {
-                    $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ? AND is_active = 1");
-                    $stmt->execute([$user_id]);
-                    $user = $stmt->fetch();
-                    
-                    if ($user) {
-                        session_regenerate_id(true);
-                        $_SESSION['user_id'] = $user['user_id'];
-                        $_SESSION['username'] = $user['username'];
-                        $_SESSION['full_name'] = $user['full_name'];
-                        $_SESSION['role'] = $user['role'];
-                        
-                        unset($_SESSION['otp'], $_SESSION['otp_expiry'], $_SESSION['otp_user_id']);
-                        
-                        $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
-                        $stmt->execute([$user['user_id']]);
-                        
-                        if (function_exists('logActivity')) {
-                            logActivity($user['user_id'], 'login', 'User logged in');
-                        }
-                        
-                        // Redirect to dashboard after successful login
-                        header('Location: index.php');
-                        exit();
-                    }
-                } catch(PDOException $e) {
-                    $error = 'An error occurred.';
-                }
-            } else {
-                $error = 'Invalid OTP.';
-                $_SESSION['otp_attempts'] = ($_SESSION['otp_attempts'] ?? 0) + 1;
-                if ($_SESSION['otp_attempts'] >= 3) {
-                    $error = 'Too many failed attempts.';
-                    $step = 'login';
-                }
-            }
-        }
-    } elseif ($action === 'resend_otp') {
-        $user_id = (int)($_POST['user_id'] ?? 0);
-        $email = $_POST['email'] ?? '';
-        
-        if ($user_id && $email) {
-            try {
-                $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ? AND is_active = 1");
-                $stmt->execute([$user_id]);
-                $user = $stmt->fetch();
-                
-                if ($user) {
-                    $otp = generateOTP();
-                    $otp_expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-                    
-                    $_SESSION['otp'] = $otp;
-                    $_SESSION['otp_expiry'] = $otp_expiry;
-                    $_SESSION['otp_attempts'] = 0;
-                    
-                    $stmt = $pdo->prepare("INSERT INTO otp_logs (user_id, otp, expiry, ip_address, user_agent, purpose, created_at) VALUES (?, ?, ?, ?, ?, 'login', NOW())");
-                    $stmt->execute([$user['user_id'], password_hash($otp, PASSWORD_DEFAULT), $otp_expiry, $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']]);
-                    
-                    if (!sendOTPEmail($user['email'], $otp, $user['full_name'])) {
-                        $otp_display = $otp;
-                    } elseif (isLocalTestMode()) {
-                        $otp_display = $otp;
-                    }
-                    
-                    $step = 'verify_otp';
-                    $success_message = "New OTP sent";
-                }
-            } catch(PDOException $e) {
-                $error = 'An error occurred.';
             }
         }
     }
@@ -556,9 +458,8 @@ $flash = getFlash();
             color: var(--primary-dark);
             text-decoration: underline;
         }
-        
-        /* 2FA Notice */
-        .twofa-notice {
+
+        .security-notice {
             background: rgba(139, 195, 74, 0.08);
             border-left: 4px solid var(--primary);
             padding: 15px;
@@ -570,7 +471,7 @@ $flash = getFlash();
             font-size: 0.9rem;
             color: var(--text);
         }
-        .twofa-notice i { color: var(--primary); font-size: 1.2rem; }
+        .security-notice i { color: var(--primary); font-size: 1.2rem; }
         
         /* Login Button */
         .btn-login {
@@ -615,30 +516,6 @@ $flash = getFlash();
             background: rgba(139, 195, 74, 0.10);
             border-left: 4px solid var(--success);
             color: var(--accent-dark);
-        }
-        
-        /* OTP Display */
-        .otp-display {
-            background: rgba(139, 195, 74, 0.08);
-            border: 2px dashed rgba(139, 195, 74, 0.20);
-            border-radius: 12px;
-            padding: 1rem;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .otp-display .label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-light);
-            font-weight: 600;
-        }
-        .otp-display .code {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: 0.2em;
-            color: var(--primary);
-            font-family: monospace;
         }
         
         /* Divider */
@@ -851,17 +728,17 @@ $flash = getFlash();
             <div class="login-header">
                 <div class="role-badge">
                     <i class="fas fa-user-tie"></i>
-                    <span><?= ($step === 'login') ? 'Administrator Access' : 'Two-Factor Authentication' ?></span>
+                    <span>Administrator Access</span>
                 </div>
-                <h2><?= ($step === 'login') ? 'Welcome Back!' : 'Verify OTP' ?></h2>
-                <p><?= ($step === 'login') ? 'Sign in to manage your smart bin system' : 'Enter the 6-digit code sent to your email' ?></p>
+                <h2>Welcome Back!</h2>
+                <p>Sign in to manage your smart bin system</p>
             </div>
 
             <!-- Error / Success Messages -->
             <?php if ($error): ?>
                 <div class="error-alert">
                     <i class="fas fa-exclamation-circle"></i>
-                    <?= htmlspecialchars($error) ?>
+                    <?= htmlspecialchars($error) ?> 
                 </div>
             <?php endif; ?>
             <?php if (isset($success_message)): ?>
@@ -871,16 +748,7 @@ $flash = getFlash();
                 </div>
             <?php endif; ?>
 
-            <!-- OTP Display (testing) -->
-            <?php if (!empty($otp_display)): ?>
-                <div class="otp-display">
-                    <div class="label">Test OTP</div>
-                    <div class="code"><?= $otp_display ?></div>
-                </div>
-            <?php endif; ?>
-
             <!-- Login Form -->
-            <?php if ($step === 'login'): ?>
                 <form method="POST" id="loginForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="action" value="login">
@@ -909,9 +777,9 @@ $flash = getFlash();
                         <a href="#" class="forgot-link">Forgot password?</a>
                     </div>
 
-                    <div class="twofa-notice">
+                    <div class="security-notice">
                         <i class="fas fa-shield-alt"></i>
-                        <span>Two-factor authentication will be required after login</span>
+                        <span>Username and password authentication</span>
                     </div>
 
                     <button type="submit" class="btn-login" id="loginButton">
@@ -928,58 +796,11 @@ $flash = getFlash();
                         Back to CT-ABS Homepage
                     </a>
                 </div>
-            <?php else: ?>
-                <!-- OTP Verification Form -->
-                <form method="POST" id="otpForm">
-                    <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
-                    <input type="hidden" name="action" value="verify_otp">
-                    <input type="hidden" name="user_id" value="<?= $user_id ?>">
-
-                    <div class="mb-4">
-                        <label class="form-label fw-medium">6-Digit OTP</label>
-                        <div class="input-group-custom">
-                            <span class="input-group-text"><i class="fas fa-key"></i></span>
-                            <input type="text" name="otp" id="otp" class="form-control text-center" 
-                                   placeholder="000000" required maxlength="6" pattern="[0-9]{6}"
-                                   style="font-size:1.5rem; font-weight:700; letter-spacing:0.3em;">
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mb-4 text-sm">
-                        <span class="text-muted">
-                            <i class="far fa-clock me-1"></i> Expires in 
-                            <span id="timer" class="fw-bold" style="color:var(--primary);">5:00</span>
-                        </span>
-                        <button type="button" id="resendBtn" 
-                                class="btn btn-link text-decoration-none p-0" style="color:var(--primary);">
-                            Resend OTP
-                        </button>
-                    </div>
-
-                    <button type="submit" class="btn-login">
-                        <i class="fas fa-check-circle"></i> Verify OTP
-                    </button>
-
-                    <div class="mt-4 text-center">
-                        <a href="login.php" class="text-muted text-decoration-none small">
-                            <i class="fas fa-arrow-left me-1"></i> Back to Login
-                        </a>
-                    </div>
-                </form>
-
-                <!-- Resend form (hidden) -->
-                <form id="resendForm" method="POST" class="d-none">
-                    <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
-                    <input type="hidden" name="action" value="resend_otp">
-                    <input type="hidden" name="user_id" value="<?= $user_id ?>">
-                    <input type="hidden" name="email" value="<?= htmlspecialchars($email) ?>">
-                </form>
-            <?php endif; ?>
 
             <!-- Security Badge -->
             <div class="security-badge">
                 <span><i class="fas fa-shield-alt"></i> 256-bit SSL</span>
-                <span><i class="fas fa-lock"></i> 2FA Enabled</span>
+                <span><i class="fas fa-lock"></i> Password Protected</span>
                 <span><i class="fas fa-clock"></i> Real-time Sync</span>
             </div>
             <div class="text-center mt-3">
@@ -1036,47 +857,6 @@ $flash = getFlash();
                 toggleIcon.classList.add('fa-eye');
             }
         }
-
-        // ============================================================
-        // OTP auto-submit on 6 digits
-        // ============================================================
-        const otpInput = document.getElementById('otp');
-        if (otpInput) {
-            otpInput.addEventListener('input', function() {
-                this.value = this.value.replace(/\D/g, '');
-                if (this.value.length === 6) {
-                    this.closest('form').submit();
-                }
-            });
-        }
-
-        // ============================================================
-        // OTP Timer
-        // ============================================================
-        const timer = document.getElementById('timer');
-        if (timer) {
-            let timeLeft = 300;
-            const interval = setInterval(() => {
-                const mins = Math.floor(timeLeft / 60);
-                const secs = timeLeft % 60;
-                timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
-                if (timeLeft <= 0) {
-                    clearInterval(interval);
-                    timer.textContent = 'Expired';
-                    timer.classList.add('text-danger');
-                }
-                timeLeft--;
-            }, 1000);
-        }
-
-        // ============================================================
-        // Resend OTP
-        // ============================================================
-        document.getElementById('resendBtn')?.addEventListener('click', function() {
-            if (confirm('Request a new OTP?')) {
-                document.getElementById('resendForm').submit();
-            }
-        });
 
         // ============================================================
         // Form loading overlay
