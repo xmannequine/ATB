@@ -1,3 +1,6 @@
+ai/
+.venv/
+venv/
 # Python
 ai/venv/
 ai/__pycache__/
