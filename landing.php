@@ -352,11 +352,7 @@ $flash = getFlash();
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>
     
-    <!-- Theme Toggle -->
-    <button class="theme-toggle" id="themeToggle">
-        <i class="fas fa-moon" id="themeIcon"></i>
-        <span id="themeLabel">Dark</span>
-    </button>
+   
     
     <!-- ============================================= -->
     <!-- NAVIGATION – logo.png in place of icon        -->

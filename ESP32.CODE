@@ -21,7 +21,7 @@ const char* API_KEY = "d7a3537446863c4e3ad51ac53a34fb99447dfe83bb287a46";
 
 // Sensor order is physical right-to-left and matches the five monitor positions.
 // Sensor 1: right-most, Sensor 5: left-most.
-const uint8_t TRIGGER_PINS[5] = {17, 11, 19, 48, 7};
+const uint8_t TRIGGER_PINS[5] = {17, 11, 19, 21, 35};
 const uint8_t ECHO_PINS[5] = {18, 10, 20, 47, 36};
 
 // Calibrate these values for the actual bin geometry.
@@ -62,7 +62,6 @@ float readDistanceCm(uint8_t triggerPin, uint8_t echoPin) {
 }
 
 float distanceToFill(float distanceCm) {
-  if (distanceCm < 0) return 0.0f;
   float fill = (EMPTY_DISTANCE_CM - distanceCm) * 100.0f
       / (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM);
   return constrain(fill, 0.0f, 100.0f);
@@ -75,17 +74,22 @@ void sendReadings() {
   }
 
   StaticJsonDocument<768> payload;
-  JsonArray distances = payload.createNestedArray("ultrasonic_cm");
+  JsonArray distances = payload.createNestedArray("ultrasonic");
   JsonArray fills = payload.createNestedArray("fill_levels");
 
   for (int index = 0; index < 5; index++) {
     float distance = readDistanceCm(TRIGGER_PINS[index], ECHO_PINS[index]);
-    float fill = distanceToFill(distance);
-    distances.add(distance);
-    fills.add(fill);
-    Serial.printf("Sensor %d (%s): %.1f cm, %.1f%% full\n",
-      index + 1, index == 0 ? "right-most" : index == 4 ? "left-most" : "middle",
-      distance, fill);
+    if (distance < 0.0f) {
+      distances.add(nullptr);
+      fills.add(nullptr);
+      Serial.printf("Sensor %d: NO ECHO\n", index + 1);
+    } else {
+      float fill = distanceToFill(distance);
+      distances.add(distance);
+      fills.add(fill);
+      Serial.printf("Sensor %d: %.1f cm, %.1f%% full\n",
+        index + 1, distance, fill);
+    }
     delay(60); // reduce cross-talk between ultrasonic sensors
   }
 

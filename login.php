@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
             $error = 'Security validation failed.';
+            error_log('Login CSRF mismatch: session_has_token=' . (isset($_SESSION['csrf_token']) ? 'yes' : 'no') . ', session_id=' . session_id());
         } elseif (empty($username) || empty($password)) {
             $error = 'Please enter both username and password.';
         } else {
@@ -664,11 +665,7 @@ $flash = getFlash();
         </div>
     </div>
 
-    <!-- Theme Toggle -->
-    <button class="theme-toggle" id="themeToggle">
-        <i class="fas fa-moon" id="themeIcon"></i>
-        <span id="themeLabel">Dark</span>
-    </button>
+    
 
     <!-- Animated Background Shapes -->
     <div class="bg-shape">
@@ -866,6 +863,15 @@ $flash = getFlash();
                 const overlay = document.getElementById('loadingOverlay');
                 if (overlay) overlay.style.display = 'flex';
             });
+        });
+
+        // ============================================================
+        // Reload on bfcache restore so a stale CSRF token can't be resubmitted
+        // ============================================================
+        window.addEventListener('pageshow', function(e) {
+            if (e.persisted) {
+                window.location.reload();
+            }
         });
 
         // ============================================================

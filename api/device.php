@@ -109,6 +109,9 @@ try {
                 send_json(['success' => false, 'message' => 'ultrasonic must contain exactly 5 readings'], 422);
             }
             foreach ($ultrasonicReadings as $reading) {
+                if ($reading === null) {
+                    continue;
+                }
                 if (!is_numeric($reading) || (float)$reading < 0) {
                     send_json(['success' => false, 'message' => 'ultrasonic readings must be non-negative numbers'], 422);
                 }
@@ -120,6 +123,9 @@ try {
                 send_json(['success' => false, 'message' => 'fill_levels must contain exactly 5 values'], 422);
             }
             foreach ($fillLevels as $level) {
+                if ($level === null) {
+                    continue;
+                }
                 if (!is_numeric($level) || (float)$level < 0 || (float)$level > 100) {
                     send_json(['success' => false, 'message' => 'fill_levels must be between 0 and 100'], 422);
                 }
@@ -158,7 +164,7 @@ try {
             }
         }
 
-        // A five-sensor board updates the five active bins in bin_id order.
+        // ESP32 Sensor 1 through Sensor 5 map directly to ascending BIN-001 through BIN-005 IDs.
         if (is_array($fillLevels)) {
             $stmt = $pdo->query("SELECT bin_id FROM trash_bins WHERE status = 'active' ORDER BY bin_id LIMIT 5");
             $binIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -168,8 +174,11 @@ try {
             }
 
             $stmt = $pdo->prepare('UPDATE trash_bins SET fill_level = ?, updated_at = NOW() WHERE bin_id = ?');
-            foreach (array_values($fillLevels) as $index => $level) {
-                $stmt->execute([round((float)$level, 2), (int)$binIds[$index]]);
+            foreach (array_values($fillLevels) as $sensorIndex => $level) {
+                if ($level === null) {
+                    continue;
+                }
+                $stmt->execute([round((float)$level, 2), (int)$binIds[$sensorIndex]]);
             }
             $processed[] = 'five_bin_fill_levels';
         }

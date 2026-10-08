@@ -257,7 +257,8 @@ function getFlash() {
 
 // CSRF protection
 function generateCSRFToken() {
-    if (empty($_SESSION['csrf_token'])) {
+    $isExpired = isset($_SESSION['csrf_token_time']) && (time() - $_SESSION['csrf_token_time']) > CSRF_TOKEN_LIFETIME;
+    if (empty($_SESSION['csrf_token']) || $isExpired) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         $_SESSION['csrf_token_time'] = time();
     }
